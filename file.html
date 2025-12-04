@@ -7,12 +7,12 @@
   </head>
   <body>
     <div>
-      <h1>File Transfer</h1>
-      <p>Share files using firebase :(</p>
+      <h1>My File Storage</h1>
+      <p>Upload and manage your files</p>
 
       <div id="uploadArea">
         <h3>Drop your file here or click to browse</h3>
-        <p>Maximum file size: 33MB</p>
+        <p>Maximum file size: 7MB</p>
         <input type="file" id="fileInput" accept="*/*" />
       </div>
 
@@ -26,7 +26,7 @@
       </div>
 
       <div>
-        <button id="uploadBtn" disabled>Upload File</button>
+        <button id="uploadBtn" disabled>Upload My File</button>
       </div>
 
       <div id="shareCode" style="display: none">
@@ -41,7 +41,7 @@
       <hr />
 
       <div id="fileList">
-        <h3>All Uploaded Files</h3>
+        <h3>My Files</h3>
         <div id="fileListContainer"></div>
       </div>
 
@@ -74,7 +74,7 @@
       const db = getDatabase(app);
 
       let selectedFile = null;
-      const MAX_FILE_SIZE = 33 * 1024 * 1024; // 33MB
+      const MAX_FILE_SIZE = 7 * 1024 * 1024; // 7MB (stays under 10MB after base64 encoding)
 
       const uploadArea = document.getElementById("uploadArea");
       const fileInput = document.getElementById("fileInput");
@@ -90,8 +90,10 @@
       const successMsg = document.getElementById("successMsg");
       const fileListContainer = document.getElementById("fileListContainer");
 
+      // Upload area click
       uploadArea.addEventListener("click", () => fileInput.click());
 
+      // Drag and drop
       uploadArea.addEventListener("dragover", (e) => {
         e.preventDefault();
       });
@@ -103,6 +105,8 @@
           handleFileSelect(files[0]);
         }
       });
+
+      // File input change
       fileInput.addEventListener("change", (e) => {
         if (e.target.files.length > 0) {
           handleFileSelect(e.target.files[0]);
@@ -113,7 +117,7 @@
         hideMessages();
 
         if (file.size > MAX_FILE_SIZE) {
-          showError("File is too large. Maximum size is 33MB.");
+          showError("Your file is too large. Maximum size is 7MB.");
           return;
         }
 
@@ -125,6 +129,7 @@
         shareCode.style.display = "none";
       }
 
+      // Upload file
       uploadBtn.addEventListener("click", async () => {
         if (!selectedFile) return;
 
@@ -133,11 +138,14 @@
         hideMessages();
 
         try {
+          // Read file as base64
           const base64 = await fileToBase64(selectedFile);
 
+          // Generate unique ID
           const filesRef = ref(db, "files");
           const newFileRef = push(filesRef);
 
+          // Upload to Firebase
           await set(newFileRef, {
             name: selectedFile.name,
             type: selectedFile.type,
@@ -148,8 +156,9 @@
 
           progressFill.textContent = "Upload complete!";
 
-          showSuccess("File uploaded successfully!");
+          showSuccess("Your file has been uploaded successfully!");
 
+          // Reset
           setTimeout(() => {
             resetUpload();
           }, 1000);
@@ -159,6 +168,7 @@
         }
       });
 
+      // Retrieve file
       retrieveBtn.addEventListener("click", async () => {
         const code = retrieveCode.value.trim().toUpperCase();
 
@@ -177,6 +187,7 @@
           if (snapshot.exists()) {
             const fileData = snapshot.val();
 
+            // Convert base64 to blob and download
             const blob = base64ToBlob(fileData.data, fileData.type);
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
@@ -197,6 +208,7 @@
         }
       });
 
+      // Load recent uploads
       function loadRecentFiles() {
         const filesRef = ref(db, "files");
         onValue(filesRef, (snapshot) => {
@@ -210,8 +222,10 @@
             });
           });
 
+          // Sort by timestamp
           files.sort((a, b) => b.timestamp - a.timestamp);
 
+          // Show all files
           files.forEach((file) => {
             const fileItem = createFileItem(file);
             fileListContainer.appendChild(fileItem);
@@ -251,7 +265,7 @@
             a.download = fileData.name;
             a.click();
             URL.revokeObjectURL(url);
-            showSuccess("File downloaded!");
+            showSuccess("Your file has been downloaded!");
           }
         } catch (error) {
           showError("Download failed");
@@ -264,34 +278,35 @@
         try {
           const fileRef = ref(db, `files/${code}`);
           await remove(fileRef);
-          showSuccess("File deleted successfully");
+          showSuccess("Your file has been deleted successfully");
         } catch (error) {
           showError("Delete failed");
         }
       };
 
-       function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
+      // Utility functions
+      function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function base64ToBlob(base64, type) {
+        const parts = base64.split(";base64,");
+        const contentType = type || parts[0].split(":")[1];
+        const raw = window.atob(parts[1]);
+        const rawLength = raw.length;
+        const uInt8Array = new Uint8Array(rawLength);
+
+        for (let i = 0; i < rawLength; ++i) {
+          uInt8Array[i] = raw.charCodeAt(i);
         }
 
-        function base64ToBlob(base64, type) {
-            const parts = base64.split(';base64,');
-            const contentType = type || parts[0].split(':')[1];
-            const raw = window.atob(parts[1]);
-            const rawLength = raw.length;
-            const uInt8Array = new Uint8Array(rawLength);
-
-            for (let i = 0; i < rawLength; ++i) {
-                uInt8Array[i] = raw.charCodeAt(i);
-            }
-
-            return new Blob([uInt8Array], { type: contentType });
-        }
+        return new Blob([uInt8Array], { type: contentType });
+      }
 
       function resetUpload() {
         selectedFile = null;
@@ -317,6 +332,7 @@
         successMsg.style.display = "none";
       }
 
+      // Initialize
       loadRecentFiles();
     </script>
   </body>
